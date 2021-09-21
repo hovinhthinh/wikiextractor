@@ -18,6 +18,7 @@
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 # =============================================================================
 
+import os
 import re
 import html
 import json
@@ -77,6 +78,7 @@ def clean(extractor, text, expand_templates=False, html_safe=True):
     :param html_safe: whether to convert reserved HTML characters to entities.
     @return: the cleaned text.
     """
+    text = extractor.expandQuantities(text)
 
     if expand_templates:
         # expand templates
@@ -790,6 +792,9 @@ dots = re.compile(r'\.{4,}')
 
 substWords = 'subst:|safesubst:'
 
+convert_units = json.loads(
+    open(os.path.join(os.path.dirname(__file__), './wikipedia_template_convert.json'), 'r').read())
+
 
 class Extractor():
     """
@@ -1155,6 +1160,77 @@ class Extractor():
         self.frame.pop()
         # logging.debug('   INVOCATION> %s %d %s', title, len(self.frame), value)
         return value
+
+    # Ref: https://en.wikipedia.org/wiki/Template:Convert
+    def expandQuantity(self, body):
+        if len(self.frame) >= self.maxTemplateRecursionLevels:
+            self.recursion_exceeded_2_errs += 1
+            # logging.debug('   INVOCATION> %d %s', len(self.frame), body)
+            return ''
+
+        parts = [p.strip() for p in splitParts(body)]
+        if parts[0] not in ['cvt', 'convert'] or len(parts) < 3:
+            return ''
+
+        # Various checks
+        # Check range
+        if len(parts) >= 5 and parts[2] in {'-', '–', 'and', 'and(-)', 'or', 'to', 'to(-)', 'to about', '+/-', '±', ',',
+                                            ', and', ', or', 'by', 'x', '×'}:
+            return ''
+        # Inserted before units
+        if 'adj=pre' in parts or 'disp=preunit' in parts or 'adj=mid' in parts:
+            return ''
+
+        # Now print
+
+        # Scale
+        code = parts[2]
+        scale = ''
+        if code.startswith('e3'):
+            scale = ' thousand'
+            code = code[2:]
+        elif code.startswith('e6'):
+            scale = ' million'
+            code = code[2:]
+        elif code.startswith('e9'):
+            scale = ' billion'
+            code = code[2:]
+        elif code.startswith('e12'):
+            scale = ' trillion'
+            code = code[3:]
+        elif code.startswith('e15'):
+            scale = ' quadrillion'
+            code = code[3:]
+
+        abbr = 'abbr=on' in parts or parts[0] == 'cvt'
+        singular = scale == '' and (parts[1] == '1' or 'adj=on' in parts)
+
+        if parts[2] in convert_units:
+            if abbr:
+                name = convert_units[code]['abbr']
+            else:
+                name = convert_units[code]['name'] if singular else convert_units[code]['pluralName']
+        else:
+            name = code
+        return parts[1] + scale + ' ' + name
+
+    def expandQuantities(self, wikitext):
+        res = ''
+        if len(self.frame) >= self.maxTemplateRecursionLevels:
+            self.recursion_exceeded_1_errs += 1
+            return res
+
+        # logging.debug('<expandTemplates ' + str(len(self.frame)))
+
+        cur = 0
+        # look for matching {{...}}
+        for s, e in findMatchingBraces(wikitext, 2):
+            res += wikitext[cur:s] + self.expandQuantity(wikitext[s + 2:e - 2])
+            cur = e
+        # leftover
+        res += wikitext[cur:]
+        # logging.debug('   expandTemplates> %d %s', len(self.frame), res)
+        return res
 
 
 # ----------------------------------------------------------------------
