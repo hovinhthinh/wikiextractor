@@ -1203,7 +1203,7 @@ class Extractor():
             code = code[3:]
 
         abbr = 'abbr=on' in parts or parts[0] == 'cvt'
-        singular = scale == '' and (parts[1] == '1' or 'adj=on' in parts)
+        singular = (scale == '' and parts[1] == '1') or 'adj=on' in parts
 
         if code in convert_units:
             if abbr:
