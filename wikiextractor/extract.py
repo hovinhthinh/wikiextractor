@@ -1169,7 +1169,7 @@ class Extractor():
             return ''
 
         parts = [p.strip() for p in splitParts(body)]
-        if parts[0] not in ['cvt', 'convert'] or len(parts) < 3:
+        if parts[0].lower() not in ['cvt', 'convert'] or len(parts) < 3:
             return ''
 
         # Various checks
@@ -1178,32 +1178,38 @@ class Extractor():
                                             ', and', ', or', 'by', 'x', '×'}:
             return ''
         # Inserted before units
-        if 'adj=pre' in parts or 'disp=preunit' in parts or 'adj=mid' in parts:
+        if 'adj=pre' in parts or 'disp=preunit' in parts:
             return ''
 
         # Now print
+        # Adj mid
+        after = None
+        if 'adj=mid' in parts:
+            after = parts[parts.index('adj=mid') + 1]
+            if after.startswith('-'):
+                after = after[1:]
 
         # Scale
         code = parts[2]
-        scale = ''
+        scale = None
         if code.startswith('e3'):
-            scale = ' thousand'
+            scale = 'thousand'
             code = code[2:]
         elif code.startswith('e6'):
-            scale = ' million'
+            scale = 'million'
             code = code[2:]
         elif code.startswith('e9'):
-            scale = ' billion'
+            scale = 'billion'
             code = code[2:]
         elif code.startswith('e12'):
-            scale = ' trillion'
+            scale = 'trillion'
             code = code[3:]
         elif code.startswith('e15'):
-            scale = ' quadrillion'
+            scale = 'quadrillion'
             code = code[3:]
 
         abbr = 'abbr=on' in parts or parts[0] == 'cvt'
-        singular = (scale == '' and parts[1] == '1') or 'adj=on' in parts
+        singular = (scale == '' and parts[1] == '1') or 'adj=on' in parts or 'adj=mid' in parts
 
         if code in convert_units:
             if abbr:
@@ -1212,7 +1218,7 @@ class Extractor():
                 name = convert_units[code]['name'] if singular else convert_units[code]['pluralName']
         else:
             name = code
-        return parts[1] + scale + ' ' + name
+        return parts[1] + ('' if scale is None else ' ' + scale) + ' ' + name + ('' if after is None else ' ' + after)
 
     def expandQuantities(self, wikitext):
         res = ''
