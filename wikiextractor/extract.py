@@ -1185,9 +1185,13 @@ class Extractor():
         # Adj mid
         after = None
         if 'adj=mid' in parts:
-            after = parts[parts.index('adj=mid') + 1]
-            if after.startswith('-'):
-                after = after[1:]
+            idx = parts.index('adj=mid')
+            if idx + 1 < len(parts):
+                after = parts[idx + 1]
+                if after.startswith('-'):
+                    after = after[1:]
+                if after == '':
+                    after = None
 
         # Scale
         code = parts[2]
